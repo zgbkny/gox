@@ -1,5 +1,11 @@
 package udptunnel
 
+/*****************************************
+ * just do something about tunnel, for example
+ * -- control rate
+ *
+ *****************************************/
+
 import (
 	"net"
 	"log"
@@ -13,21 +19,21 @@ import (
 
 /** 同一个目的地的集合 **/
 type UDPTunnel struct {
-	Reserved		int				// 数据区前预留的头部空间大小
+	Reserved			int				// 数据区前预留的头部空间大小
 
 	dst				string
 	listenAddr		string
-	send			chan []byte
+	send				chan []byte
 	conn			*net.UDPConn
-	addr			*net.UDPAddr
-	idSessionMap	map[uint32]*udpsession.Session
+	addr				*net.UDPAddr
+	idSessionMap		map[uint32]*udpsession.Session
 	connIdMap		map[net.Conn]uint32
-	onDataF			func(*net.Conn, []byte) int
-	loopRead		func(*net.Conn, uint32)
+	onDataF			func([]byte) int
+	loopRead			func(*net.Conn, uint32)
 
 
 	// 统计
-	sessionCount uint32				// 当运行于客户端时用于产生session id，服务端只是用于统计
+	sessionCount		uint32				// 当运行于客户端时用于产生session id，服务端只是用于统计
 }
 var ll *sync.Mutex
 var count int
@@ -38,7 +44,7 @@ const MAX = 1000
 /**
  * 启动客户端
  **/
-func CreateClientTunnel(onDataF func(*net.Conn, []byte) int) *UDPTunnel {
+func CreateClientTunnel(onDataF func([]byte) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	log.Println("udptunnel Init")
@@ -46,10 +52,9 @@ func CreateClientTunnel(onDataF func(*net.Conn, []byte) int) *UDPTunnel {
 	ut.initClientTunnel()
 	return ut
 }
-func CreateServerTunnel(onDataF func(*net.Conn, []byte) int, loopRead func(*net.Conn, uint32)) *UDPTunnel {
+func CreateServerTunnel(onDataF func([]byte) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
-	ut.loopRead = loopRead
 	ut.listenAddr = ":9001"
 	return ut
 }
@@ -133,31 +138,11 @@ func (ut *UDPTunnel)ProcessCloseConn(conn net.Conn) {
  * 处理客户端网关写原始数据	
  * rawData: 原始的数据，但是前面预留了96(ut.Reserved)字节的头部空间
  **/
-func (ut *UDPTunnel)WriteRawDataToServer(conn net.Conn, rawData []byte, dst string) int {
-	log.Println("udptunnel WriteRawDataToServer", string(rawData))
-	var s *udpsession.Session
-	id, ok := ut.connIdMap[conn]
-	// 第一步： 查找session或创建session
-	if ok {
-		s = ut.idSessionMap[id]
-	} else {
-		s = udpsession.CreateNewSession(ut.sessionCount, &conn, dst, ut.onDataF, ut.loopRead)
-		ut.idSessionMap[id] = s
-		ut.connIdMap[conn] = id
-		ut.sessionCount++
-	}
-
-	// 第二步：处理数据
-	s.ProcessNewDataToServerProxy(rawData, dst)
-
-	// 第三部：获取发送数据
-	for {
-		p := s.GetNextSendDataToSend()
-		if p == nil {
-			break
-		}
-		ut.send <- p.GetPacket()
-	}
+func (ut *UDPTunnel)WritePacketToServerProxy(data []byte) int {
+	log.Println("udptunnel WritePacketToServerProxy", string(data))
+	
+	ut.send <- data
+	
 	return 1
 }
 
@@ -165,27 +150,9 @@ func (ut *UDPTunnel)WriteRawDataToServer(conn net.Conn, rawData []byte, dst stri
  * 处理服务器网关写原始数据
  * rawData: 原始数据，但是前面预留了96(ut.Reserved)字节的头空间
  **/
-func (ut *UDPTunnel)WriteRawDataToClient(conn net.Conn, rawData []byte) {
-	log.Println("udptunnel WriteRawDataToClient")
-	id, ok := ut.connIdMap[conn]
-	if !ok {
-		log.Println("nil conn id")
-		return
-	}
-	s, ok := ut.idSessionMap[id]
-	if !ok {
-		log.Println("nil id session")
-		return
-	}
-	s.ProcessNewDataToClientProxy(rawData)
-	for {
-		p := s.GetNextSendDataToSend()
-		if p == nil {
-			break
-		}
-		log.Println("send")
-		ut.send <- p.GetPacket()
-	}
+func (ut *UDPTunnel)WritePacketToClientProxy(data []byte) {
+	log.Println("udptunnel WritePacketToClientProxy")
+	ut.send <- data
 }
 
 /**
@@ -196,7 +163,7 @@ func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
 	p := udppacket.GenPacketFromData(data)
 	s, ok := ut.idSessionMap[p.SessionId]
 	if !ok {
-		s = udpsession.CreateNewSession(ut.sessionCount, nil, p.Dst, ut.onDataF, ut.loopRead)
+		s = udpsession.CreateNewSession(ut.sessionCount)
 		ut.idSessionMap[p.SessionId] = s
 		ut.sessionCount++
 

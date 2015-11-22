@@ -1,50 +1,97 @@
 package udp2tcp
 import (
 	"log"
-	"net"
+//	"net"
 //	"os"
 	"udptunnel"
+	"udpsession"
+	"udppacket"
 )
 
 var ut *udptunnel.UDPTunnel
+var idSessionMap map[uint32]*udpsession.Session   
 
-var idConnMap map[uint32]*net.Conn
 
 /**
- * 写数据到服务器
+ * tunnel call
  **/
-func onData(conn *net.Conn, data []byte) int {
-	log.Println("serverproxy ondata", string(data))
-	c := *conn
-	_, err := c.Write(data)
-	if err != nil {
+func onData(data []byte) int {
+	// getsession
+	p := udppacket.GenPacketFromData(data)
+	if p == nil {
 		return -1
+	}
+	s, ok := idSessionMap[p.SessionId]	
+	if !ok {
+		return -1
+	}
+	// processNewPacketFromServerProxy
+	s.ProcessNewPacketFromServerProxy(p)
+	// getNextDataToSend
+	for {
+		p := s.GetNextRecvDataToSend()
+		if p == nil {
+			break
+		}
+		processWrite(s, p.GetPacket())
+
 	}
 	return 0
 }
+/**
+ * server write
+ **/
+func processWrite(s *udpsession.Session, data []byte) {
+	conn := *s.C
+	index := 0
+	
+	for {
+		length, err := conn.Write(data[index:])
+		if err != nil {
+			conn.Close()
+			return 
+		}
+		if length != len(data) {
+			index = length
+		} else {
+			break
+		}
+	}
+	return 
+}
 
 /**
- * 从服务器读取数据
+ * server read
  **/
-func loopRead(c *net.Conn, id uint32) {
-	ut.AddNewConnId(*c, id)
+func processRead(s *udpsession.Session) {
+	conn := *s.C
+
 	for {
 		buf := make([]byte, 4096)
-		n, err := (*c).Read(buf[96:])
+		n, err := conn.Read(buf[96:])
 		if err != nil {
 			break
 		}
+
+		s.ProcessNewDataToClientProxy(buf[:96 + n])
 		log.Println("server proxy loopRead", string(buf[96 : 96 + n]))
-		ut.WriteRawDataToClient(*c, buf[:96 + n])
+		for {
+			p := s.GetNextSendDataToSend()
+			if p == nil {
+				break
+			}
+			// tunnel write
+			ut.WritePacketToClientProxy(p.GetPacket())
+		}
 	}
 }
 
 
 func Run() {
-	idConnMap = map[uint32]*net.Conn{}
+	idSessionMap = map[uint32]*udpsession.Session{}
 
 	// 启动udp服务器代理，并注册响应的回调函数
-	ut = udptunnel.CreateServerTunnel(onData, loopRead)
+	ut = udptunnel.CreateServerTunnel(onData)
 	ut.StartServer()
 }
 

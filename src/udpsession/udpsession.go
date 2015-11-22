@@ -14,7 +14,7 @@ const SESS_NORMAL = 1
 
 type Session struct {
 	id				uint32
-	c				*net.Conn
+	C				*net.Conn
 	dst				string
 
 	status			int
@@ -43,7 +43,7 @@ func CreateNewSessionOnServer(id uint32) *Session {
 	s.count = 0
 	s.minPacketRecvId = 0
 	s.maxPacketRecvId = 0
-	s.c = nil
+	s.C = nil
 
 	s.idPacketRecvMap = map[uint32]*udppacket.Packet{}
 	s.sendList = list.New()
@@ -51,7 +51,22 @@ func CreateNewSessionOnServer(id uint32) *Session {
 	return s
 }
 
-func CreateNewSession(id uint32, conn *net.Conn, dst string, onDataF func(*net.Conn, []byte) int, loopRead func(*net.Conn, uint32)) *Session {
+func CreateNewSession(id uint32) *Session {
+	s := new(Session)
+	s.id = id
+	s.count = 0
+	s.minPacketRecvId = 0
+	s.maxPacketRecvId = 0
+	s.C = nil
+
+	s.idPacketRecvMap = map[uint32]*udppacket.Packet{}
+	s.sendList = list.New()
+	s.recvList = list.New()
+	return s
+}
+
+
+func CreateNewSession1(id uint32, conn *net.Conn, dst string, onDataF func(*net.Conn, []byte) int, loopRead func(*net.Conn, uint32)) *Session {
 	log.Println("udptunnel createNewSession")
 	s := new(Session)
 	s.dst = dst
@@ -59,7 +74,7 @@ func CreateNewSession(id uint32, conn *net.Conn, dst string, onDataF func(*net.C
 	s.loopRead = loopRead
 	s.status = SESS_INIT
 	s.count = 0
-	s.c = conn
+	s.C = conn
 	s.id = id
 
 	s.idPacketRecvMap = map[uint32]*udppacket.Packet{}
@@ -69,9 +84,9 @@ func CreateNewSession(id uint32, conn *net.Conn, dst string, onDataF func(*net.C
 }
 
 
-func (s *Session)ProcessNewDataToServerProxy(rawData []byte, dst string) {
+func (s *Session)ProcessNewDataToServerProxy(rawData []byte) {
 	log.Println("session ProcessNewDataToServerProxy")
-	p := udppacket.CreateNewPacket(s.count, rawData, dst)
+	p := udppacket.CreateNewPacket(s.count, rawData, "")
 	s.sendPackets = append(s.sendPackets, p)
 	s.count++
 	header := s.genHeader(p)
@@ -151,20 +166,20 @@ func (s *Session)SendToServer() {
 }
 
 func (s *Session)sendPacketToClient(p *udppacket.Packet) {
-	log.Println("sendPacketToClient", s.c,s.onDataF )
-	s.onDataF(s.c, p.GetPacket())
+	log.Println("sendPacketToClient", s.C,s.onDataF )
+	s.onDataF(s.C, p.GetPacket())
 }
 func (s *Session)sendData(p *udppacket.Packet) {
 	log.Println("session sendData", s.dst)
-	if s.c == nil {
+	if s.C == nil {
 		conn, err := net.Dial("tcp", s.dst)
 		if err != nil {
 			return
 		}
-		s.c = &conn
-		go s.loopRead(s.c, s.id)
+		s.C = &conn
+		go s.loopRead(s.C, s.id)
 	}
-	ret := s.onDataF(s.c, p.GetPacket())
+	ret := s.onDataF(s.C, p.GetPacket())
 	if ret != 0 { // 关闭会话
 
 	}
