@@ -17,8 +17,12 @@ var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session   
 
 
-/* tunnel call */
+/**
+ * tunnel call 
+ *
+ **/
 func onData (data []byte) int {
+	log.Println("tcp2udp onData")
 	// getsession
 	p := udppacket.GenPacketFromData(data)
 	if p == nil {
@@ -46,8 +50,7 @@ func onData (data []byte) int {
 
 /**
  * client tcp write
- * 
- */
+ **/
 func processWrite (s *udpsession.Session,data []byte) int {
 	log.Println("processWrite", string(data))
 	conn := *s.C
@@ -68,6 +71,8 @@ func processWrite (s *udpsession.Session,data []byte) int {
 	}
 	return 0
 }
+
+
 /**
  * client tcp read
  **/
@@ -84,12 +89,16 @@ func processRead (s *udpsession.Session) {
 			ut.ProcessCloseConn(conn)
 			break
 		}
+
+
 		/////////////////////////////////////////////////
-		
 		s.ProcessNewDataToServerProxy(buf[:length + 96])
 		
 		for {
 			p := s.GetNextSendDataToSend()
+			if p == nil {
+				break
+			}
 			rc := ut.WritePacketToServerProxy(p.GetPacket())
 			// 检查数据处理结果
 			if rc == -1 {
@@ -109,7 +118,8 @@ func processRead (s *udpsession.Session) {
 func processNewAcceptedConn(conn net.Conn) *udpsession.Session {
 	s := udpsession.CreateNewSession(sessionCount)
 	s.C = &conn
-
+	idSessionMap[sessionCount] = s
+	sessionCount++
 	return s
 }
 

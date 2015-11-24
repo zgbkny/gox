@@ -66,6 +66,14 @@ func CreateNewSession(id uint32) *Session {
 }
 
 
+/**
+ * destroy session
+ */
+func (s *Session) Destroy() {
+
+}
+
+/*
 func CreateNewSession1(id uint32, conn *net.Conn, dst string, onDataF func(*net.Conn, []byte) int, loopRead func(*net.Conn, uint32)) *Session {
 	log.Println("udptunnel createNewSession")
 	s := new(Session)
@@ -81,10 +89,10 @@ func CreateNewSession1(id uint32, conn *net.Conn, dst string, onDataF func(*net.
 	s.sendList = list.New()
 	s.recvList = list.New()
 	return s
-}
+}*/
 
 
-func (s *Session)ProcessNewDataToServerProxy(rawData []byte) {
+func (s *Session) ProcessNewDataToServerProxy(rawData []byte) {
 	log.Println("session ProcessNewDataToServerProxy")
 	p := udppacket.CreateNewPacket(s.count, rawData, "")
 	s.sendPackets = append(s.sendPackets, p)
@@ -94,7 +102,7 @@ func (s *Session)ProcessNewDataToServerProxy(rawData []byte) {
 	s.sendList.PushBack(p)
 }
 
-func (s *Session)ProcessNewDataToClientProxy(rawData []byte) {
+func (s *Session) ProcessNewDataToClientProxy(rawData []byte) {
 	log.Println("session ProcessNewDataToClientProxy")
 	p := udppacket.CreateNewPacket(s.count, rawData, "")
 	s.sendPackets = append(s.sendPackets, p)
@@ -106,7 +114,7 @@ func (s *Session)ProcessNewDataToClientProxy(rawData []byte) {
 /**
  * 处理从服务端网关发回的数据包
  **/
-func (s *Session)ProcessNewPacketFromServerProxy(p *udppacket.Packet) {
+func (s *Session) ProcessNewPacketFromServerProxy(p *udppacket.Packet) {
 	log.Println("session ProcessNewPacketFromServerProxy")
 	if s.maxPacketRecvId < p.Id {
 		s.maxPacketRecvId = p.Id
@@ -136,7 +144,7 @@ func (s *Session)ProcessNewPacketFromServerProxy(p *udppacket.Packet) {
  * 会话处理新的数据包
  * 并发
  **/
-func (s *Session)ProcessNewPacketFromClientProxy(p *udppacket.Packet) {
+func (s *Session) ProcessNewPacketFromClientProxy(p *udppacket.Packet) {
 	log.Println("session ProcessNewPacketFromClientProxy")
 	if s.maxPacketRecvId < p.Id {
 		s.maxPacketRecvId = p.Id
@@ -155,7 +163,7 @@ func (s *Session)ProcessNewPacketFromClientProxy(p *udppacket.Packet) {
 }
 
 
-func (s *Session)SendToServer() {
+func (s *Session) SendToServer() {
 	for {
 		p := s.GetNextRecvDataToSend()
 		if p == nil {
@@ -165,11 +173,12 @@ func (s *Session)SendToServer() {
 	}
 }
 
-func (s *Session)sendPacketToClient(p *udppacket.Packet) {
+func (s *Session) sendPacketToClient(p *udppacket.Packet) {
 	log.Println("sendPacketToClient", s.C,s.onDataF )
 	s.onDataF(s.C, p.GetPacket())
 }
-func (s *Session)sendData(p *udppacket.Packet) {
+
+func (s *Session) sendData(p *udppacket.Packet) {
 	log.Println("session sendData", s.dst)
 	if s.C == nil {
 		conn, err := net.Dial("tcp", s.dst)
@@ -186,7 +195,7 @@ func (s *Session)sendData(p *udppacket.Packet) {
 }
 
 
-func (s *Session)GetNextSendDataToSend() *udppacket.Packet {
+func (s *Session) GetNextSendDataToSend() *udppacket.Packet {
 	e := s.sendList.Front()
 	if e != nil {
 		if data, ok := e.Value.(*udppacket.Packet); ok {
@@ -197,7 +206,7 @@ func (s *Session)GetNextSendDataToSend() *udppacket.Packet {
 	return nil
 }
 
-func (s *Session)GetNextRecvDataToSend() *udppacket.Packet {
+func (s *Session) GetNextRecvDataToSend() *udppacket.Packet {
 	e := s.recvList.Front()
 	if e != nil {
 		if data, ok := e.Value.(*udppacket.Packet); ok {
@@ -208,7 +217,7 @@ func (s *Session)GetNextRecvDataToSend() *udppacket.Packet {
 	return nil
 }
 
-func (s *Session)genHeader(p *udppacket.Packet) []byte{
+func (s *Session) genHeader(p *udppacket.Packet) []byte{
 	log.Println("udptunnel genHeader")
 	header := make([]byte, 96)
 	count := 0

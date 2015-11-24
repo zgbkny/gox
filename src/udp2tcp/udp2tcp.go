@@ -1,7 +1,7 @@
 package udp2tcp
 import (
 	"log"
-//	"net"
+	"net"
 //	"os"
 	"udptunnel"
 	"udpsession"
@@ -12,10 +12,20 @@ var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session   
 
 
+func connectToServer(s *udpsession.Session) bool {
+	conn, err := net.Dial("tcp", "localhost:9090")
+	if err != nil {
+		return false
+	}
+	s.C = &conn
+	return true
+}
+
 /**
  * tunnel call
  **/
 func onData(data []byte) int {
+	log.Println("udp2tcp onData")
 	// getsession
 	p := udppacket.GenPacketFromData(data)
 	if p == nil {
@@ -23,7 +33,13 @@ func onData(data []byte) int {
 	}
 	s, ok := idSessionMap[p.SessionId]	
 	if !ok {
-		return -1
+		log.Println("nil session")
+		s = udpsession.CreateNewSession(p.SessionId)
+		ret := connectToServer(s)
+		if !ret {
+			s.Destroy()
+			return 1
+		}
 	}
 	// processNewPacketFromServerProxy
 	s.ProcessNewPacketFromServerProxy(p)

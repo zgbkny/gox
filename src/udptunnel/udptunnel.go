@@ -48,14 +48,16 @@ func CreateClientTunnel(onDataF func([]byte) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	log.Println("udptunnel Init")
-	ut.dst = "192.168.80.128:9001"
-	ut.initClientTunnel()
+	ut.dst = "192.168.0.156:9001"
+
+	ut.initClientTunnel()	
 	return ut
 }
 func CreateServerTunnel(onDataF func([]byte) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	ut.listenAddr = ":9001"
+	
 	return ut
 }
 
@@ -76,11 +78,13 @@ func createUDPTunnel() *UDPTunnel {
 //======================================================
 
 func (ut *UDPTunnel)StartServer() {
+
 	ut.initServerTunnel()
 }
 
 
 func (ut *UDPTunnel)initClientTunnel() {
+
 	// 初始化连接
 	addr, err := net.ResolveUDPAddr("udp", ut.dst)
 	if err != nil {
@@ -92,6 +96,7 @@ func (ut *UDPTunnel)initClientTunnel() {
 	}
 	ut.conn = conn
 	ut.addr = addr
+
 	go ut.tunnelWriteToServerProxy()
 	go ut.tunnelReadFromServerProxy()
 }
@@ -160,16 +165,8 @@ func (ut *UDPTunnel)WritePacketToClientProxy(data []byte) {
  * data 包含会话信息的数据
  **/
 func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
-	p := udppacket.GenPacketFromData(data)
-	s, ok := ut.idSessionMap[p.SessionId]
-	if !ok {
-		s = udpsession.CreateNewSession(ut.sessionCount)
-		ut.idSessionMap[p.SessionId] = s
-		ut.sessionCount++
-
-	}
-	s.ProcessNewPacketFromClientProxy(p)
-	s.SendToServer()
+	log.Println("udptunnel readPacketFromClientProxy", ut.onDataF)
+	ut.onDataF(data)
 }
 
 /**
@@ -215,7 +212,7 @@ func (ut *UDPTunnel)tunnelWriteToClientProxy() {
  **/
 func(ut *UDPTunnel)tunnelReadFromClientProxy() {
 	for {
-		log.Println("udptunnel readPackatFromClientProxy")
+		log.Println("udptunnel tunnelReadFromClientProxy")
 		data := make([]byte, 4096)
 		n, addr, err := ut.conn.ReadFromUDP(data)
 		ut.addr = addr
@@ -232,7 +229,7 @@ func(ut *UDPTunnel)tunnelReadFromClientProxy() {
  **/
 func(ut *UDPTunnel)tunnelReadFromServerProxy() {
 	for {
-		log.Println("udptunnel readPackatFromServerProxy")
+		log.Println("udptunnel tunnelReadFromServerProxy")
 		data := make([]byte, 4096)
 		n, _, err := ut.conn.ReadFromUDP(data)
 		log.Println("after read", n)
