@@ -150,9 +150,10 @@ func (s *Session) ProcessNewPacketFromClientProxy(p *udppacket.Packet) {
 		s.maxPacketRecvId = p.Id
 	}
 	s.idPacketRecvMap[p.Id] = p
-
+	log.Println("p.id", p.Id, "s.minPacketRecvId", s.minPacketRecvId)
 	for {
 		p, ok := s.idPacketRecvMap[s.minPacketRecvId]
+		log.Println("ok", ok)
 		if !ok {
 			break
 		}

@@ -48,7 +48,7 @@ func CreateClientTunnel(onDataF func([]byte) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	log.Println("udptunnel Init")
-	ut.dst = "192.168.0.156:9001"
+	ut.dst = "192.168.1.9:9001"
 
 	ut.initClientTunnel()	
 	return ut

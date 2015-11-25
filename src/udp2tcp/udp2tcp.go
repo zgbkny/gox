@@ -13,8 +13,9 @@ var idSessionMap map[uint32]*udpsession.Session
 
 
 func connectToServer(s *udpsession.Session) bool {
-	conn, err := net.Dial("tcp", "localhost:9090")
+	conn, err := net.Dial("tcp", "localhost:90")
 	if err != nil {
+		log.Println("connectToServer", err)
 		return false
 	}
 	s.C = &conn
@@ -37,18 +38,22 @@ func onData(data []byte) int {
 		s = udpsession.CreateNewSession(p.SessionId)
 		ret := connectToServer(s)
 		if !ret {
+			log.Println("connect to proxy error")
 			s.Destroy()
 			return 1
 		}
+		go processRead(s)
 	}
-	// processNewPacketFromServerProxy
-	s.ProcessNewPacketFromServerProxy(p)
+	// processNewPacketFromClientProxy
+	s.ProcessNewPacketFromClientProxy(p)
 	// getNextDataToSend
 	for {
 		p := s.GetNextRecvDataToSend()
 		if p == nil {
+			log.Println("send data nil")
 			break
 		}
+		log.Println("udp2tcp processWrite", string(p.GetPacket()))
 		processWrite(s, p.GetPacket())
 
 	}
@@ -81,7 +86,7 @@ func processWrite(s *udpsession.Session, data []byte) {
  **/
 func processRead(s *udpsession.Session) {
 	conn := *s.C
-
+	log.Println("udp2tcp processRead")
 	for {
 		buf := make([]byte, 4096)
 		n, err := conn.Read(buf[96:])
