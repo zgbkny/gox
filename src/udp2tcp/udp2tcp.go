@@ -9,7 +9,7 @@ import (
 )
 
 var ut *udptunnel.UDPTunnel
-var idSessionMap map[uint32]*udpsession.Session   
+var idSessionMap map[uint32]*udpsession.Session
 
 
 func connectToServer(s *udpsession.Session) bool {
@@ -32,9 +32,9 @@ func onData(data []byte) int {
 	if p == nil {
 		return -1
 	}
-	s, ok := idSessionMap[p.SessionId]	
+	s, ok := idSessionMap[p.SessionId]
 	if !ok {
-		log.Println("nil session")
+		log.Println("nil session", p.SessionId)
 		s = udpsession.CreateNewSession(p.SessionId)
 		ret := connectToServer(s)
 		if !ret {
@@ -44,9 +44,8 @@ func onData(data []byte) int {
 		}
 		go processRead(s)
 	}
-	// processNewPacketFromClientProxy
+
 	s.ProcessNewPacketFromClientProxy(p)
-	// getNextDataToSend
 	for {
 		p := s.GetNextRecvDataToSend()
 		if p == nil {
@@ -65,12 +64,11 @@ func onData(data []byte) int {
 func processWrite(s *udpsession.Session, data []byte) {
 	conn := *s.C
 	index := 0
-	
 	for {
 		length, err := conn.Write(data[index:])
 		if err != nil {
 			conn.Close()
-			return 
+			return
 		}
 		if length != len(data) {
 			index = length
@@ -78,7 +76,7 @@ func processWrite(s *udpsession.Session, data []byte) {
 			break
 		}
 	}
-	return 
+	return
 }
 
 /**
@@ -95,7 +93,7 @@ func processRead(s *udpsession.Session) {
 		}
 
 		s.ProcessNewDataToClientProxy(buf[:96 + n])
-		log.Println("server proxy loopRead", string(buf[96 : 96 + n]))
+		log.Println("server proxy loopRead len", n)
 		for {
 			p := s.GetNextSendDataToSend()
 			if p == nil {

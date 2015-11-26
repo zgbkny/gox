@@ -129,15 +129,6 @@ func (s *Session) ProcessNewPacketFromServerProxy(p *udppacket.Packet) {
 		delete(s.idPacketRecvMap, s.minPacketRecvId)
 		s.minPacketRecvId++
 	}
-
-	for {
-		p := s.GetNextRecvDataToSend()
-		if p != nil {
-			s.sendPacketToClient(p)
-		} else {
-			break
-		}
-	}
 }
 
 /**
@@ -174,10 +165,6 @@ func (s *Session) SendToServer() {
 	}
 }
 
-func (s *Session) sendPacketToClient(p *udppacket.Packet) {
-	log.Println("sendPacketToClient", s.C,s.onDataF )
-	s.onDataF(s.C, p.GetPacket())
-}
 
 func (s *Session) sendData(p *udppacket.Packet) {
 	log.Println("session sendData", s.dst)

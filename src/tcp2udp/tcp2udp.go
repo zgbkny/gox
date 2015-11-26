@@ -14,7 +14,7 @@ const serverAddr = "localhost:9001"
 
 var sessionCount uint32
 var ut *udptunnel.UDPTunnel
-var idSessionMap map[uint32]*udpsession.Session   
+var idSessionMap map[uint32]*udpsession.Session
 
 
 /**
@@ -28,15 +28,15 @@ func onData (data []byte) int {
 	if p == nil {
 		return -1
 	}
-	s, ok := idSessionMap[p.SessionId]	
+	s, ok := idSessionMap[p.SessionId]
 	if !ok {
 		return -1
 	}
 	// processNewPacketFromServerProxy
-	
+
 	s.ProcessNewPacketFromServerProxy(p)
 	// getNextDataToSend
-	
+
 	for {
 		p := s.GetNextRecvDataToSend()
 		if p == nil {
@@ -52,19 +52,19 @@ func onData (data []byte) int {
  * client tcp write
  **/
 func processWrite (s *udpsession.Session,data []byte) int {
-	log.Println("processWrite", string(data))
 	conn := *s.C
-	
+
 	index := 0
-	
+
 	for {
 		length, err := conn.Write(data[index:])
 		if err != nil {
 			conn.Close()
 			return -1
 		}
+		log.Println("tcp2udp processWrite len", len(data), ";write len", length)
 		if length != len(data) {
-			index = length
+			index += length
 		} else {
 			break
 		}
@@ -83,7 +83,7 @@ func processRead (s *udpsession.Session) {
 	for {
 		/////////////////////////////////////////////////
 		buf := make([]byte, 4096)
-		length, err := conn.Read(buf[96:]) 
+		length, err := conn.Read(buf[96:])
 		if err != nil {
 			log.Println("client read error", err)
 			ut.ProcessCloseConn(conn)
@@ -93,7 +93,7 @@ func processRead (s *udpsession.Session) {
 
 		/////////////////////////////////////////////////
 		s.ProcessNewDataToServerProxy(buf[:length + 96])
-		
+
 		for {
 			p := s.GetNextSendDataToSend()
 			if p == nil {

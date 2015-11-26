@@ -13,22 +13,22 @@ import (
 	"sync"
 //	"utils"
 	"udpsession"
-	"udppacket"
+//	"udppacket"
 )
 
 
 /** 同一个目的地的集合 **/
 type UDPTunnel struct {
-	Reserved			int				// 数据区前预留的头部空间大小
+	Reserved			int					// 数据区前预留的头部空间大小
 
-	dst				string
-	listenAddr		string
+	dst					string
+	listenAddr			string
 	send				chan []byte
-	conn			*net.UDPConn
+	conn				*net.UDPConn
 	addr				*net.UDPAddr
 	idSessionMap		map[uint32]*udpsession.Session
-	connIdMap		map[net.Conn]uint32
-	onDataF			func([]byte) int
+	connIdMap			map[net.Conn]uint32
+	onDataF				func([]byte) int
 	loopRead			func(*net.Conn, uint32)
 
 
@@ -48,7 +48,7 @@ func CreateClientTunnel(onDataF func([]byte) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	log.Println("udptunnel Init")
-	ut.dst = "192.168.1.9:9001"
+	ut.dst = "192.168.80.128:9001"
 
 	ut.initClientTunnel()	
 	return ut
@@ -145,9 +145,7 @@ func (ut *UDPTunnel)ProcessCloseConn(conn net.Conn) {
  **/
 func (ut *UDPTunnel)WritePacketToServerProxy(data []byte) int {
 	log.Println("udptunnel WritePacketToServerProxy", string(data))
-	
 	ut.send <- data
-	
 	return 1
 }
 
@@ -165,7 +163,7 @@ func (ut *UDPTunnel)WritePacketToClientProxy(data []byte) {
  * data 包含会话信息的数据
  **/
 func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
-	log.Println("udptunnel readPacketFromClientProxy", ut.onDataF)
+	log.Println("udptunnel readPacketFromClientProxy")
 	ut.onDataF(data)
 }
 
@@ -175,13 +173,7 @@ func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
  **/
 func (ut *UDPTunnel)readPacketFromServerProxy(data []byte) {
 	log.Println("udptunnel readPacketFromServerProxy")
-	p := udppacket.GenPacketFromData(data)
-	s, ok := ut.idSessionMap[p.SessionId]
-	if !ok {
-		log.Println("client proxy recv nomap session")
-		return
-	}
-	s.ProcessNewPacketFromServerProxy(p)
+	ut.onDataF(data)
 }
 
 //-------------------------------------------------------------------
@@ -220,7 +212,7 @@ func(ut *UDPTunnel)tunnelReadFromClientProxy() {
 		if err != nil {
 			return
 		}
-		log.Println("data", string(data))
+		log.Println("data len", n)
 		go ut.readPacketFromClientProxy(data[:n])
 	}
 }
@@ -236,7 +228,7 @@ func(ut *UDPTunnel)tunnelReadFromServerProxy() {
 		if err != nil {
 			return
 		}
-		log.Println("data", string(data))
+		log.Println("data len", n)
 		go ut.readPacketFromServerProxy(data[:n])
 	}
 }
