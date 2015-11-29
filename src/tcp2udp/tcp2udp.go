@@ -12,7 +12,7 @@ const maxLongConns = 10
 const serverAddr = "localhost:9001"
 
 
-var sessionCount uint32
+var sessionCount uint32				// 产生sessionId
 var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session
 
@@ -23,6 +23,7 @@ var idSessionMap map[uint32]*udpsession.Session
  **/
 func onData (p *udppacket.Packet) int {
 	log.Println("tcp2udp onData")
+	p.LogPacket()
 	// getsession
 	s, ok := idSessionMap[p.SessionId]
 	if !ok {
@@ -59,7 +60,6 @@ func processWrite (s *udpsession.Session,data []byte) int {
 			conn.Close()
 			return -1
 		}
-		log.Println("tcp2udp processWrite len", len(data), ";write len", length)
 		if length != len(data) {
 			index += length
 		} else {
@@ -74,20 +74,18 @@ func processWrite (s *udpsession.Session,data []byte) int {
  * client tcp read
  **/
 func processRead (s *udpsession.Session) {
+	log.Println("tcp2udp processRead")
 	conn := *s.C
 
-	log.Println("new connection:", conn.LocalAddr())
 	for {
 		/////////////////////////////////////////////////
 		buf := make([]byte, 4096)
 		length, err := conn.Read(buf[96:])
 		if err != nil {
 			log.Println("client read error", err)
-			ut.ProcessCloseConn(conn)
+			ut.CloseSession(s.Destroy())
 			break
 		}
-
-
 		/////////////////////////////////////////////////
 		s.ProcessNewDataToServerProxy(buf[:length + 96])
 
@@ -96,6 +94,7 @@ func processRead (s *udpsession.Session) {
 			if p == nil {
 				break
 			}
+			p.LogPacket()
 			rc := ut.WritePacketToServerProxy(p)
 			// 检查数据处理结果
 			if rc == -1 {
@@ -117,6 +116,7 @@ func processNewAcceptedConn(conn net.Conn) *udpsession.Session {
 	s.C = &conn
 	idSessionMap[sessionCount] = s
 	sessionCount++
+	log.Println("sessionCount", sessionCount)
 	return s
 }
 

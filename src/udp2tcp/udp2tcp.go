@@ -3,6 +3,7 @@ import (
 	"log"
 	"net"
 //	"os"
+	"sync"
 	"udptunnel"
 	"udpsession"
 	"udppacket"
@@ -10,7 +11,7 @@ import (
 
 var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session
-
+var lock *sync.Mutex
 
 func connectToServer(s *udpsession.Session) bool {
 	conn, err := net.Dial("tcp", "localhost:90")
@@ -27,20 +28,22 @@ func connectToServer(s *udpsession.Session) bool {
  **/
 func onData(p *udppacket.Packet) int {
 	log.Println("udp2tcp onData")
+	p.LogPacket()
 	// getsession
 	s, ok := idSessionMap[p.SessionId]
 	if !ok {
-		log.Println("nil session", p.SessionId)
+		lock.Lock()
 		s = udpsession.CreateNewSession(p.SessionId)
 		ret := connectToServer(s)
 		if !ret {
 			log.Println("connect to proxy error")
-			s.Destroy()
+			ut.WritePacketToClientProxy(s.Destroy())
 			return 1
 		}
+		lock.Unlock()
 		go processRead(s)
 	}
-
+	s.Slock.Lock()
 	s.ProcessNewPacketFromClientProxy(p)
 	for {
 		p := s.GetNextRecvDataToSend()
@@ -48,10 +51,10 @@ func onData(p *udppacket.Packet) int {
 			log.Println("send data nil")
 			break
 		}
-		log.Println("udp2tcp processWrite", string(p.GetPacket()))
 		processWrite(s, p.GetPacket())
 
 	}
+	s.Slock.Unlock()
 	return 0
 }
 /**
@@ -85,17 +88,19 @@ func processRead(s *udpsession.Session) {
 		buf := make([]byte, 4096)
 		n, err := conn.Read(buf[96:])
 		if err != nil {
+			log.Println("server read ", err)
+			ut.CloseSession(s.Destroy())
 			break
 		}
 
 		s.ProcessNewDataToClientProxy(buf[:96 + n])
-		log.Println("server proxy loopRead len", n)
 		for {
 			p := s.GetNextSendDataToSend()
 			if p == nil {
 				break
 			}
 			// tunnel write
+			p.LogPacket()
 			ut.WritePacketToClientProxy(p)
 		}
 	}
@@ -104,7 +109,7 @@ func processRead(s *udpsession.Session) {
 
 func Run() {
 	idSessionMap = map[uint32]*udpsession.Session{}
-
+	lock = new(sync.Mutex)
 	// 启动udp服务器代理，并注册响应的回调函数
 	ut = udptunnel.CreateServerTunnel(onData)
 	ut.StartServer()

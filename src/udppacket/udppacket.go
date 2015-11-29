@@ -35,6 +35,7 @@ func CreateNewPacket(id uint32, rawData []byte, dst string) *Packet {
 	p.GroupId = 0
 	p.Id = id 
 	p.Dst = dst
+	p.Length = len(rawData) - 96
 	return p
 }
 
@@ -63,6 +64,10 @@ func GenPacketFromData(data []byte) *Packet {
 	p.Dst = dst
 	p.RawData = data
 	return p
+}
+
+func (p *Packet)LogPacket() {
+	log.Println("Length", p.Length, "SessionId", p.SessionId, "GroupId", p.GroupId, "Id", p.Id, "ProtoType", p.ProtoType, "PacketType", p.PacketType, "Dst", p.Dst)
 }
 
 func (p *Packet)RawDataAddHeader(header []byte) {
