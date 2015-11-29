@@ -13,7 +13,7 @@ import (
 	"sync"
 //	"utils"
 	"udpsession"
-//	"udppacket"
+	"udppacket"
 )
 
 
@@ -28,7 +28,7 @@ type UDPTunnel struct {
 	addr				*net.UDPAddr
 	idSessionMap		map[uint32]*udpsession.Session
 	connIdMap			map[net.Conn]uint32
-	onDataF				func([]byte) int
+	onDataF				func(*udppacket.Packet) int
 	loopRead			func(*net.Conn, uint32)
 
 
@@ -44,20 +44,20 @@ const MAX = 1000
 /**
  * 启动客户端
  **/
-func CreateClientTunnel(onDataF func([]byte) int) *UDPTunnel {
+func CreateClientTunnel(onDataF func(*udppacket.Packet) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	log.Println("udptunnel Init")
 	ut.dst = "192.168.80.128:9001"
 
-	ut.initClientTunnel()	
+	ut.initClientTunnel()
 	return ut
 }
-func CreateServerTunnel(onDataF func([]byte) int) *UDPTunnel {
+func CreateServerTunnel(onDataF func(*udppacket.Packet) int) *UDPTunnel {
 	ut := createUDPTunnel()
 	ut.onDataF = onDataF
 	ut.listenAddr = ":9001"
-	
+
 	return ut
 }
 
@@ -143,9 +143,9 @@ func (ut *UDPTunnel)ProcessCloseConn(conn net.Conn) {
  * 处理客户端网关写原始数据	
  * rawData: 原始的数据，但是前面预留了96(ut.Reserved)字节的头部空间
  **/
-func (ut *UDPTunnel)WritePacketToServerProxy(data []byte) int {
-	log.Println("udptunnel WritePacketToServerProxy", string(data))
-	ut.send <- data
+func (ut *UDPTunnel)WritePacketToServerProxy(p *udppacket.Packet) int {
+	log.Println("udptunnel WritePacketToServerProxy")
+	ut.send <- p.GetPacket()
 	return 1
 }
 
@@ -153,9 +153,9 @@ func (ut *UDPTunnel)WritePacketToServerProxy(data []byte) int {
  * 处理服务器网关写原始数据
  * rawData: 原始数据，但是前面预留了96(ut.Reserved)字节的头空间
  **/
-func (ut *UDPTunnel)WritePacketToClientProxy(data []byte) {
+func (ut *UDPTunnel)WritePacketToClientProxy(p *udppacket.Packet) {
 	log.Println("udptunnel WritePacketToClientProxy")
-	ut.send <- data
+	ut.send <- p.GetPacket()
 }
 
 /**
@@ -164,7 +164,11 @@ func (ut *UDPTunnel)WritePacketToClientProxy(data []byte) {
  **/
 func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
 	log.Println("udptunnel readPacketFromClientProxy")
-	ut.onDataF(data)
+	p := udppacket.GenPacketFromData(data)
+	if p == nil {
+		return 
+	}
+	ut.onDataF(p)
 }
 
 /**
@@ -173,7 +177,11 @@ func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
  **/
 func (ut *UDPTunnel)readPacketFromServerProxy(data []byte) {
 	log.Println("udptunnel readPacketFromServerProxy")
-	ut.onDataF(data)
+	p := udppacket.GenPacketFromData(data)
+	if p == nil {
+		return 
+	}
+	ut.onDataF(p)
 }
 
 //-------------------------------------------------------------------

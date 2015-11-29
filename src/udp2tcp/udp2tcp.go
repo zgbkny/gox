@@ -25,13 +25,9 @@ func connectToServer(s *udpsession.Session) bool {
 /**
  * tunnel call
  **/
-func onData(data []byte) int {
+func onData(p *udppacket.Packet) int {
 	log.Println("udp2tcp onData")
 	// getsession
-	p := udppacket.GenPacketFromData(data)
-	if p == nil {
-		return -1
-	}
 	s, ok := idSessionMap[p.SessionId]
 	if !ok {
 		log.Println("nil session", p.SessionId)
@@ -100,7 +96,7 @@ func processRead(s *udpsession.Session) {
 				break
 			}
 			// tunnel write
-			ut.WritePacketToClientProxy(p.GetPacket())
+			ut.WritePacketToClientProxy(p)
 		}
 	}
 }
