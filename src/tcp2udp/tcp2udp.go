@@ -2,6 +2,7 @@ package tcp2udp
 import (
 	"net"
 	"log"
+	"sync"
 	"udptunnel"
 	"udpsession"
 	"udppacket"
@@ -11,11 +12,25 @@ const maxBundleClientConns = 0x10
 const maxLongConns = 10
 const serverAddr = "localhost:9001"
 
-
+var lock *sync.Mutex
 var sessionCount uint32				// 产生sessionId
 var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session
-
+func releaseSession(id uint32, flag bool) {
+	s, ok := idSessionMap[id]
+	if ok {
+		lock.Lock()
+		defer lock.Unlock()
+		s, ok = idSessionMap[id]
+		if ok {
+			delete(idSessionMap, id)
+			p := s.Destroy(flag)
+			if p != nil {
+				ut.WritePacketToServerProxy(p)
+			}
+		}
+	}
+}
 
 /**
  * tunnel call 
@@ -28,6 +43,9 @@ func onData (p *udppacket.Packet) int {
 	s, ok := idSessionMap[p.SessionId]
 	if !ok {
 		return -1
+	}
+	if (p.Length == 0) {
+		releaseSession(s.GetId(), false)
 	}
 	// processNewPacketFromServerProxy
 	s.Slock.Lock()
@@ -51,13 +69,13 @@ func onData (p *udppacket.Packet) int {
  **/
 func processWrite (s *udpsession.Session,data []byte) int {
 	conn := *s.C
-
+	id := s.GetId()
 	index := 0
 
 	for {
 		length, err := conn.Write(data[index:])
 		if err != nil {
-			conn.Close()
+			releaseSession(id, true)
 			return -1
 		}
 		if length != len(data) {
@@ -76,14 +94,14 @@ func processWrite (s *udpsession.Session,data []byte) int {
 func processRead (s *udpsession.Session) {
 	log.Println("tcp2udp processRead")
 	conn := *s.C
-
+	id := s.GetId()
 	for {
 		/////////////////////////////////////////////////
 		buf := make([]byte, 4096)
 		length, err := conn.Read(buf[96:])
 		if err != nil {
 			log.Println("client read error", err)
-			ut.CloseSession(s.Destroy())
+			releaseSession(id, true)
 			break
 		}
 		/////////////////////////////////////////////////
@@ -142,6 +160,7 @@ func initListen() {
 
 func Run() {
 	sessionCount = 0
+	lock = new(sync.Mutex)
 	idSessionMap = map[uint32]*udpsession.Session{}
 	ut = udptunnel.CreateClientTunnel(onData)
 	initListen()

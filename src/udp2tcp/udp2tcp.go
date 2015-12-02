@@ -13,6 +13,45 @@ var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session
 var lock *sync.Mutex
 
+
+func getSession(id uint32) *udpsession.Session {
+	s, ok := idSessionMap[id]
+	if !ok {
+		lock.Lock()
+		s, ok = idSessionMap[id]
+		if !ok { 
+			s = udpsession.CreateNewSession(id)
+			idSessionMap[id] = s
+			ok := connectToServer(s)
+			if !ok {
+				delete (idSessionMap, id)
+				s.Destroy(false)
+				lock.Unlock()
+				return nil
+			}
+			lock.Unlock()
+			go processRead(s)
+		}
+	}
+	return s
+}
+
+func releaseSession(id uint32, flag bool) {
+	s, ok := idSessionMap[id]
+	if ok {
+		lock.Lock()
+		defer lock.Unlock()
+		s, ok = idSessionMap[id]
+		if ok {
+			delete(idSessionMap, id)
+			p := s.Destroy(flag)
+			if p != nil {
+				ut.WritePacketToClientProxy(p)
+			}
+		}
+	}
+}
+
 func connectToServer(s *udpsession.Session) bool {
 	conn, err := net.Dial("tcp", "localhost:90")
 	if err != nil {
@@ -29,20 +68,16 @@ func connectToServer(s *udpsession.Session) bool {
 func onData(p *udppacket.Packet) int {
 	log.Println("udp2tcp onData")
 	p.LogPacket()
-	// getsession
-	s, ok := idSessionMap[p.SessionId]
-	if !ok {
-		lock.Lock()
-		s = udpsession.CreateNewSession(p.SessionId)
-		ret := connectToServer(s)
-		if !ret {
-			log.Println("connect to proxy error")
-			ut.WritePacketToClientProxy(s.Destroy())
-			return 1
-		}
-		lock.Unlock()
-		go processRead(s)
+	// close packet
+	if p.Length == 0 {
+		releaseSession(p.SessionId, false)
+		return 1
 	}
+	s := getSession(p.SessionId)
+	if s == nil {
+		return -1
+	}
+	log.Println("udp2tcp check")
 	s.Slock.Lock()
 	s.ProcessNewPacketFromClientProxy(p)
 	for {
@@ -63,10 +98,11 @@ func onData(p *udppacket.Packet) int {
 func processWrite(s *udpsession.Session, data []byte) {
 	conn := *s.C
 	index := 0
+	id := s.GetId()
 	for {
 		length, err := conn.Write(data[index:])
 		if err != nil {
-			conn.Close()
+			releaseSession(id, true)
 			return
 		}
 		if length != len(data) {
@@ -84,12 +120,13 @@ func processWrite(s *udpsession.Session, data []byte) {
 func processRead(s *udpsession.Session) {
 	conn := *s.C
 	log.Println("udp2tcp processRead")
+	id := s.GetId()
 	for {
 		buf := make([]byte, 4096)
 		n, err := conn.Read(buf[96:])
 		if err != nil {
 			log.Println("server read ", err)
-			ut.CloseSession(s.Destroy())
+			releaseSession(id, true)
 			break
 		}
 

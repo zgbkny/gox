@@ -44,4 +44,7 @@ func main() {
 	fmt.Println(data[2 : 4])
 	fmt.Println(t)
 
+	str := "adfhadfh276t829gfjahsdvkjhbsdjhbksjhgkjhwoeiygo2837rtygjhbk"
+	strBytes := []byte(str)
+	fmt.Println(len(str), len(strBytes))
 }

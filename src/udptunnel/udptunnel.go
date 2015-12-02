@@ -12,7 +12,6 @@ import (
 	"os"
 	"sync"
 //	"utils"
-	"udpsession"
 	"udppacket"
 )
 
@@ -26,19 +25,23 @@ type UDPTunnel struct {
 	send				chan []byte
 	conn				*net.UDPConn
 	addr				*net.UDPAddr
-	idSessionMap		map[uint32]*udpsession.Session
-	connIdMap			map[net.Conn]uint32
 	onDataF				func(*udppacket.Packet) int
-	loopRead			func(*net.Conn, uint32)
 
+	packetRecvMap		map[uint32] *udppacket.Packet
+	packetSendMap		map[uint32] *udppacket.Packet
+
+	minRecvMap			uint32
+	maxRecvMap			uint32
+
+	minSendMap			uint32
+	maxSendMap			uint32
 
 	// 统计
-	sessionCount		uint32				// 当运行于客户端时用于产生session id，服务端只是用于统计
+	tunnelCount		uint32				// 当运行于客户端时用于产生session id，服务端只是用于统计
 }
 var ll *sync.Mutex
 var count int
 const MAX = 1000
-
 
 
 /**
@@ -68,9 +71,13 @@ func createUDPTunnel() *UDPTunnel {
 
 	ut.send = make(chan []byte)
 	// 初始化环境
-	ut.idSessionMap = map[uint32]*udpsession.Session{}
-	ut.connIdMap = map[net.Conn]uint32{}
-	ut.sessionCount = 0
+	ut.packetRecvMap = map[uint32]*udppacket.Packet{}
+	ut.packetSendMap = map[uint32]*udppacket.Packet{}
+	ut.minRecvMap = 0
+	ut.maxRecvMap = 0
+	ut.minSendMap = 0
+	ut.maxSendMap = 0
+	ut.tunnelCount = 0
 	ut.Reserved = 96
 	return ut
 }
@@ -116,12 +123,22 @@ func (ut *UDPTunnel)initServerTunnel() {
 	ut.tunnelReadFromClientProxy()
 }
 
+func (ut *UDPTunnel)CloseSession(p *udppacket.Packet) {
+
+}
+
 /**
  * 处理客户端网关写原始数据	
  * rawData: 原始的数据，但是前面预留了96(ut.Reserved)字节的头部空间
  **/
 func (ut *UDPTunnel)WritePacketToServerProxy(p *udppacket.Packet) int {
 	//log.Println("udptunnel WritePacketToServerProxy")
+	p.ChangeTunnelId(ut.tunnelCount)
+	if ut.tunnelCount > ut.maxSendMap {
+		ut.maxSendMap = ut.tunnelCount
+	}
+	ut.tunnelCount++
+	p.LogPacket()
 	ut.send <- p.GetPacket()
 	return 1
 }
@@ -132,6 +149,11 @@ func (ut *UDPTunnel)WritePacketToServerProxy(p *udppacket.Packet) int {
  **/
 func (ut *UDPTunnel)WritePacketToClientProxy(p *udppacket.Packet) {
 	//log.Println("udptunnel WritePacketToClientProxy")
+	p.ChangeTunnelId(ut.tunnelCount)
+	if ut.tunnelCount > ut.maxSendMap {
+		ut.maxSendMap = ut.tunnelCount
+	}
+	ut.tunnelCount++
 	ut.send <- p.GetPacket()
 }
 
@@ -143,7 +165,7 @@ func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
 	//log.Println("udptunnel readPacketFromClientProxy")
 	p := udppacket.GenPacketFromData(data)
 	if p == nil {
-		return 
+		return
 	}
 	ut.onDataF(p)
 }
@@ -156,7 +178,7 @@ func (ut *UDPTunnel)readPacketFromServerProxy(data []byte) {
 	//log.Println("udptunnel readPacketFromServerProxy")
 	p := udppacket.GenPacketFromData(data)
 	if p == nil {
-		return 
+		return
 	}
 	ut.onDataF(p)
 }

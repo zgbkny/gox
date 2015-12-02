@@ -4,13 +4,15 @@ import (
 	"net"
 //	"log"
 	"container/list"
-	"utils"
+//	"utils"
 	"sync"
 	"udppacket"
 )
 
 const SESS_INIT = 0
 const SESS_NORMAL = 1
+const SESS_CLOSE = 2	// 通告对端
+const SESS_RELEASE = 3	// 只释放资源
 /** 单独一个会话,包含会话的所有信息以及当前的状态 **/
 type Session struct {
 	id				uint32
@@ -21,9 +23,7 @@ type Session struct {
 	onDataF			func(*net.Conn, []byte) int
 	Slock			*sync.Mutex
 
-	sendPackets		[]*udppacket.Packet						// 发送列表
-
-	idPacketRecvMap	map[uint32]*udppacket.Packet			// udptunnel接收
+	idPacketRecvMap	map[uint32]*udppacket.Packet			// udptunnel接收, order packet
 	maxPacketRecvId	uint32								// 从udptunnel recv
 	minPacketRecvId	uint32								// 从udptunnel recv
 
@@ -46,35 +46,48 @@ func CreateNewSession(id uint32) *Session {
 	s.recvList = list.New()
 	return s
 }
-
+func (s *Session) GetId() uint32 {
+	return s.id
+}
 
 /**
  * destroy session
  * -- return empty packet to ack remote proxy
  */
-func (s *Session) Destroy() *udppacket.Packet {
-	p := udppacket.CreateNewPacket(0)
-	return p
+func (s *Session) Destroy(flag bool) *udppacket.Packet {
+	if s.C != nil {
+		conn := *s.C
+		conn.Close()
+	}
+	if flag {
+		data := make([]byte, 96)
+		p := udppacket.CreateNewPacket(0, data, "")
+		p.SessionId = s.id
+		p.RawDataAddHeader()
+		return p
+	} else {
+		return nil
+	}
 }
 
 func (s *Session) ProcessNewDataToServerProxy(rawData []byte) {
 	//log.Println("session ProcessNewDataToServerProxy")
 	p := udppacket.CreateNewPacket(s.count, rawData, "")
 	p.SessionId = s.id
-	s.sendPackets = append(s.sendPackets, p)
+	p.OtherLen = 0
 	s.count++
-	header := s.genHeader(p)
-	p.RawDataAddHeader(header)
+	p.RawDataAddHeader()
 	s.sendList.PushBack(p)
 }
 
 func (s *Session) ProcessNewDataToClientProxy(rawData []byte) {
 	//log.Println("session ProcessNewDataToClientProxy")
 	p := udppacket.CreateNewPacket(s.count, rawData, "")
-	s.sendPackets = append(s.sendPackets, p)
+	p.SessionId = s.id
+	p.OtherLen = 0
+	p.Dst = "" 
 	s.count++
-	header := s.genHeader(p)
-	p.RawDataAddHeader(header)
+	p.RawDataAddHeader()
 	s.sendList.PushBack(p)
 }
 /**
@@ -141,39 +154,4 @@ func (s *Session) GetNextRecvDataToSend() *udppacket.Packet {
 		}
 	}
 	return nil
-}
-
-func (s *Session) genHeader(p *udppacket.Packet) []byte{
-	//log.Println("udptunnel genHeader")
-	header := make([]byte, 96)
-	count := 0
-	//log.Println("genHeader datalen", len(p.RawData) - 96)
-	dataLenBytes := utils.Int16ToBytes(len(p.RawData) - 96)
-	copy(header[count:(count + 2)], dataLenBytes)
-	count += 2
-	sessionIdBytes := utils.Int32ToBytes(p.SessionId)
-	copy(header[count:(count + 4)], sessionIdBytes)
-	count += 4
-	packetIdBytes := utils.Int32ToBytes(p.Id)
-	copy(header[count:(count + 4)], packetIdBytes)
-	count += 4
-	// 传输层协议类型
-	header[count] = p.ProtoType
-	count++
-	// 包类型
-	header[count] = p.PacketType
-	count++
-	if s.status == SESS_INIT {
-		header[count] = byte(len(p.Dst))
-		count++
-		if len(p.Dst) > 0 {
-			dstBytes := []byte(p.Dst)
-			copy(header[count:(count + len(dstBytes))], dstBytes)
-			count += len(dstBytes)
-		}
-	} else if s.status == SESS_NORMAL {
-		header[count] = byte(SESS_NORMAL)
-		count++
-	}
-	return header[:count]
 }
