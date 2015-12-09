@@ -124,33 +124,39 @@ func (ut *UDPTunnel)initServerTunnel() {
 	ut.tunnelReadFromClientProxy()
 }
 
+func (ut *UDPTunnel)CloseSession(p *udppacket.Packet) {
 
-func (ut *UDPTunnel)processPacketToSend(p *udppacket.Packet) {
-	ut.lock.Lock()
-	p.ChangeTunnelId(ut.tunnelCount)
-	if ut.tunnelCount > ut.maxSendMap {
-		ut.maxSendMap = ut.tunnelCount
-	}
-	ut.tunnelCount++
-	ut.lock.Unlock()
 }
+
 /**
  * 处理客户端网关写原始数据	
  * rawData: 原始的数据，但是前面预留了96(ut.Reserved)字节的头部空间
  **/
 func (ut *UDPTunnel)WritePacketToServerProxy(p *udppacket.Packet) int {
 	//log.Println("udptunnel WritePacketToServerProxy")
-	ut.processPacketToSend(p)
+	ut.lock.Lock()
+	p.ChangeTunnelId(ut.tunnelCount)
+	if ut.tunnelCount > ut.maxSendMap {
+		ut.maxSendMap = ut.tunnelCount
+	}
+	ut.tunnelCount++
+	p.LogPacket()
+	ut.lock.Unlock()
 	ut.send <- p.GetPacket()
 	return 1
 }
+
 /**
  * 处理服务器网关写原始数据
  * rawData: 原始数据，但是前面预留了96(ut.Reserved)字节的头空间
  **/
 func (ut *UDPTunnel)WritePacketToClientProxy(p *udppacket.Packet) {
 	//log.Println("udptunnel WritePacketToClientProxy")
-	ut.processPacketToSend(p)
+	p.ChangeTunnelId(ut.tunnelCount)
+	if ut.tunnelCount > ut.maxSendMap {
+		ut.maxSendMap = ut.tunnelCount
+	}
+	ut.tunnelCount++
 	ut.send <- p.GetPacket()
 }
 

@@ -19,7 +19,7 @@ func getSession(id uint32) *udpsession.Session {
 	if !ok {
 		lock.Lock()
 		s, ok = idSessionMap[id]
-		if !ok { 
+		if !ok {
 			s = udpsession.CreateNewSession(id)
 			idSessionMap[id] = s
 			ok := connectToServer(s)
