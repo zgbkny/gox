@@ -19,14 +19,11 @@ func handle(err error) {
 	}
 }
 func handler(w http.ResponseWriter, r *http.Request) {
+	
 	resp, err := spdyClient.Do(r)
 	defer resp.Body.Close()
 	handle(err)
-	for k, v := range resp.Header {
-		for _, vv := range v {
-			w.Header().Add(k, vv)
-		}
-	}
+	
 	log.Println(resp.StatusCode, resp.ContentLength)
 	w.WriteHeader(resp.StatusCode)
 	result, err := ioutil.ReadAll(resp.Body)

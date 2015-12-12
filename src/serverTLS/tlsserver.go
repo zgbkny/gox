@@ -7,7 +7,7 @@ import (
 //	"os"
 	"io/ioutil"
 	"log"
-	"strings"
+	//"strings"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -16,17 +16,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := http.DefaultClient.Do(r)
 	defer resp.Body.Close()
-	if err != nil {panic(err)}
+	if err != nil { panic(err) }
+	
 	for k, v := range resp.Header {
-		if strings.ContainsAny(k, ":") {
-			continue
-		} else {
 		for _, vv := range v {
-			w.Header().Add(k, vv)
-		}
+			log.Println(k, vv)
 		}
 	}
-	w.Header().Add("Host", "www.sohu.com")
+	
 	log.Println(resp.StatusCode, resp.ContentLength)
 	w.WriteHeader(resp.StatusCode)
 	result, err := ioutil.ReadAll(resp.Body)
