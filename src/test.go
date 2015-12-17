@@ -10,7 +10,10 @@ import (
 func main() {
 	//timer := time.NewTimer(time.Second * 5)
 	
-	k := utils.Get()
+	//k := utils.Get()
+	k := 1
 	log.Println(k)
+	set := utils.NewHashSet()
+	log.Println(set.Contains(k))
 	
 }

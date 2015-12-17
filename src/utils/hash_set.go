@@ -30,6 +30,13 @@ func (set *HashSet) Len() int {
 	return len(set.m)
 }
 
+func (set *HashSet) Contains(e interface{}) bool {
+	if set.m[e] {
+		return true
+	}
+	return false
+}
+
 func (set *HashSet) Same(other *HashSet) bool {
 	if other == nil {
 		return false

@@ -163,5 +163,11 @@ func Run() {
 	lock = new(sync.Mutex)
 	idSessionMap = map[uint32]*udpsession.Session{}
 	ut = udptunnel.CreateClientTunnel(onData)
+	ut.Handlers = make([]udptunnel.TunnelHandler, 0)
+	pacingModule := udptunnel.NewPacing()
+	ut.Handlers = append(ut.Handlers, pacingModule)
+	ut.Handlers[0].InitHandler()
+	log.Println("handler len:", len(ut.Handlers))
+	ut.InitHandlers()
 	initListen()
 }

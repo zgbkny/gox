@@ -15,6 +15,14 @@ import (
 	"udppacket"
 )
 
+type TunnelHandler interface {
+	InitHandler()
+	WriteToServerProxy(p *udppacket.Packet) bool
+	WriteToClientProxy(p *udppacket.Packet) bool
+	ReadFromServerProxy(p *udppacket.Packet) bool
+	ReadFromClientProxy(p *udppacket.Packet) bool
+}
+
 
 /** 同一个目的地的集合 **/
 type UDPTunnel struct {
@@ -26,6 +34,8 @@ type UDPTunnel struct {
 	conn				*net.UDPConn
 	addr				*net.UDPAddr
 	onDataF				func(*udppacket.Packet) int
+	
+	Handlers			[]TunnelHandler
 
 	packetRecvMap		map[uint32] *udppacket.Packet
 	packetSendMap		map[uint32] *udppacket.Packet
@@ -40,6 +50,7 @@ type UDPTunnel struct {
 	// 统计
 	tunnelCount			uint32				// 当运行于客户端时用于产生session id，服务端只是用于统计
 }
+
 var ll *sync.Mutex
 var count int
 const MAX = 1000
@@ -65,7 +76,6 @@ func CreateServerTunnel(onDataF func(*udppacket.Packet) int) *UDPTunnel {
 	return ut
 }
 
-
 /***********************创建对象***********************/
 func createUDPTunnel() *UDPTunnel {
 	ut := new(UDPTunnel)
@@ -80,7 +90,12 @@ func createUDPTunnel() *UDPTunnel {
 	ut.maxSendMap = 0
 	ut.tunnelCount = 0
 	ut.Reserved = 96
+	
 	return ut
+}
+
+func (ut *UDPTunnel)InitHandlers() {
+	
 }
 
 //======================================================
@@ -164,6 +179,7 @@ func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
 	if p == nil {
 		return
 	}
+	
 	ut.onDataF(p)
 }
 
