@@ -25,6 +25,8 @@ type Packet struct {
 	RawData			[]byte
 	Start			int 		// always is the start of all packet include header
 
+	next			*Packet
+	
 	// 控制信息
 	Acked			bool
 	/******包信息*******/

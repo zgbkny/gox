@@ -2,7 +2,8 @@ package udptunnel
 
 /*****************************************
  * just do something about tunnel, for example
- * -- control rate
+ * -- udptunnel只提供创建id的接口
+ * -- 每个模块维护自己的队列
  *
  *****************************************/
 
@@ -17,10 +18,11 @@ import (
 
 type TunnelHandler interface {
 	InitHandler()
-	WriteToServerProxy(p *udppacket.Packet) bool
-	WriteToClientProxy(p *udppacket.Packet) bool
-	ReadFromServerProxy(p *udppacket.Packet) bool
-	ReadFromClientProxy(p *udppacket.Packet) bool
+	WriteToServerProxy(p *udppacket.Packet) *udppacket.Packet
+	WriteToClientProxy(p *udppacket.Packet) *udppacket.Packet
+	ReadFromServerProxy(p *udppacket.Packet) *udppacket.Packet
+	ReadFromClientProxy(p *udppacket.Packet) *udppacket.Packet
+	Debug() string 
 }
 
 
@@ -156,7 +158,17 @@ func (ut *UDPTunnel)processPacketToSend(p *udppacket.Packet) {
 func (ut *UDPTunnel)WritePacketToServerProxy(p *udppacket.Packet) int {
 	//log.Println("udptunnel WritePacketToServerProxy")
 	ut.processPacketToSend(p)
-	ut.send <- p.GetPacket()
+	var sendP *udppacket.Packet = p
+	size := len(ut.Handlers)
+	for i := 0; i < size; i++ {
+		sendP = ut.Handlers[i].WriteToServerProxy(sendP)
+		if sendP == nil {
+			break
+		}
+	}
+	if sendP != nil {
+		ut.send <- p.GetPacket()
+	}
 	return 1
 }
 /**
@@ -166,7 +178,17 @@ func (ut *UDPTunnel)WritePacketToServerProxy(p *udppacket.Packet) int {
 func (ut *UDPTunnel)WritePacketToClientProxy(p *udppacket.Packet) {
 	//log.Println("udptunnel WritePacketToClientProxy")
 	ut.processPacketToSend(p)
-	ut.send <- p.GetPacket()
+	var sendP *udppacket.Packet = p
+	size := len(ut.Handlers)
+	for i := 0; i < size; i++ {
+		sendP = ut.Handlers[i].WriteToClientProxy(sendP)
+		if sendP == nil {
+			break
+		}
+	}
+	if sendP != nil {
+		ut.send <- sendP.GetPacket()
+	}
 }
 
 /**
@@ -180,7 +202,17 @@ func (ut *UDPTunnel)readPacketFromClientProxy(data []byte) {
 		return
 	}
 	
-	ut.onDataF(p)
+	var sendP *udppacket.Packet = p
+	size := len(ut.Handlers)
+	for i := size; i > 0; i-- {
+		sendP = ut.Handlers[i - 1].ReadFromClientProxy(sendP)
+		if sendP == nil {
+			break
+		}
+	}
+	if sendP != nil {
+		ut.onDataF(sendP)
+	}
 }
 
 /**
@@ -193,7 +225,17 @@ func (ut *UDPTunnel)readPacketFromServerProxy(data []byte) {
 	if p == nil {
 		return
 	}
-	ut.onDataF(p)
+	var sendP *udppacket.Packet = p
+	size := len(ut.Handlers)
+	for i := size; i > 0; i-- {
+		sendP = ut.Handlers[i - 1].ReadFromServerProxy(sendP)
+		if sendP == nil {
+			break
+		}
+	}
+	if sendP != nil {
+		ut.onDataF(sendP)
+	}
 }
 
 //-------------------------------------------------------------------

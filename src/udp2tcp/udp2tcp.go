@@ -149,6 +149,12 @@ func Run() {
 	lock = new(sync.Mutex)
 	// 启动udp服务器代理，并注册响应的回调函数
 	ut = udptunnel.CreateServerTunnel(onData)
+	ut.Handlers = make([]udptunnel.TunnelHandler, 0)
+	pacingModule := udptunnel.NewPacing()
+	ut.Handlers = append(ut.Handlers, pacingModule)
+	nackModule := udptunnel.NewNack() 
+	ut.Handlers = append(ut.Handlers, nackModule)
+	
 	ut.StartServer()
 }
 

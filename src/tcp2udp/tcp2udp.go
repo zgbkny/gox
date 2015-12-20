@@ -166,8 +166,11 @@ func Run() {
 	ut.Handlers = make([]udptunnel.TunnelHandler, 0)
 	pacingModule := udptunnel.NewPacing()
 	ut.Handlers = append(ut.Handlers, pacingModule)
-	ut.Handlers[0].InitHandler()
-	log.Println("handler len:", len(ut.Handlers))
+	nackModule := udptunnel.NewNack() 
+	ut.Handlers = append(ut.Handlers, nackModule)
+
+	//log.Println("test", len(ut.Handlers), " ", ut.Handlers[0].Debug())
+
 	ut.InitHandlers()
 	initListen()
 }

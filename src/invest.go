@@ -7,10 +7,10 @@ import (
 
 func main() {
 	var rate float64
-	rate = 0.12
-	times := 15
+	rate = 0.22
+	times := 20
 	var amountPerCycle float64
-	amountPerCycle = 2000
+	amountPerCycle = 20000
 	value := calCompound(rate, times, amountPerCycle)
 	investAmount := float64(times) * amountPerCycle
 	log.Println("invest:", investAmount, "get:", value)
