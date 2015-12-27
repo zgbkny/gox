@@ -7,19 +7,25 @@ import (
 )
 
 type Pacing struct {
+    Index  int
 	D int
-	lock *sync.Mutex
+	lock   *sync.Mutex
+    Ut     *UDPTunnel
+    LOG    *log.Logger
 }
 
-func NewPacing() *Pacing {
+func NewPacing(LOG *log.Logger) *Pacing {
 	p := new(Pacing)
+    p.LOG = LOG
 	return p
 }
 
-func (pacing *Pacing)InitHandler() {
+func (pacing *Pacing)InitHandler(ut *UDPTunnel, index int) {
 	pacing.D = 1000
 	pacing.lock = new(sync.Mutex)
-	log.Println("InitHandler", pacing.D)
+	pacing.LOG.Println("InitHandler")
+    pacing.Ut = ut
+    pacing.Index = index
 }
 
 func (pacing *Pacing)Debug() string {
@@ -27,28 +33,28 @@ func (pacing *Pacing)Debug() string {
 }
 
 func (pacing *Pacing)WriteToServerProxy(p *udppacket.Packet) *udppacket.Packet {
-	log.Println("ut_pacing_module WriteToServerProxy")
+	pacing.LOG.Println("ut_pacing_module WriteToServerProxy")
 	pacing.lock.Lock()
 	defer pacing.lock.Unlock()
 	return p
 }
 
 func (pacing *Pacing)WriteToClientProxy(p *udppacket.Packet) *udppacket.Packet {
-	log.Println("ut_pacing_module WriteToClientProxy")
+	pacing.LOG.Println("ut_pacing_module WriteToClientProxy")
 	pacing.lock.Lock()
 	defer pacing.lock.Unlock()
 	return p
 }
 
 func (pacing *Pacing)ReadFromServerProxy(p *udppacket.Packet) *udppacket.Packet {
-	log.Println("ut_pacing_module ReadFromServerProxy")
+	pacing.LOG.Println("ut_pacing_module ReadFromServerProxy")
 	pacing.lock.Lock()
 	defer pacing.lock.Unlock()
 	return p
 }
 
 func (pacing *Pacing)ReadFromClientProxy(p *udppacket.Packet) *udppacket.Packet {
-	log.Println("ut_pacing_module ReadFromClientProxy")
+	pacing.LOG.Println("ut_pacing_module ReadFromClientProxy")
 	pacing.lock.Lock()
 	defer pacing.lock.Unlock()
 	return p

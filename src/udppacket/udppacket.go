@@ -14,16 +14,34 @@ const Id_INDEX = 10
 const Id_END = 14
 const ProtoType_INDEX = 14
 const PacketType_INDEX = 15
-const OtherLen_INDEX = 16
+const OtherTunnelId_INDEX = 16
+const OtherTunnelId_END = 20
+const OtherLen_INDEX = 21
 
-const PACK_NORM = 0
-const PACK_ACK = 1
-const PACK_NACK = 2
-const PACK_CLOSE = 3
+
+const PACK_NEW = 0      // 刚刚创建的新包，各个模块需要对该包进行完善
+const PACK_NORM = 1     // 已经不是一个新包了
+
+
+/***********************************************************************************
+ *
+ *
+ *  |--Length(2)----|----------TunnelId(4)---------|--------SessionId(4)---------|
+ *  |-------------Id(4)-----------|Proto(1)|Pack(1)|---------TunnelId(4)---------|
+ *  |Other(1)|--option(n)--|----------------------data---------------------------|
+ *
+ *  Pack：数据包的标志位，一共有8个标志位
+ *  |7|6|5|4|3|2|1|-0(NACK)-|
+ *
+ *
+ ***********************************************************************************/
 
 type Packet struct {
+    LOG             *log.Logger
+    ModulesCtx      []interface{}
 	RawData			[]byte
 	Start			int 		// always is the start of all packet include header
+    Status          int         // 包状态，比如：重传？还是新包
 
 	next			*Packet
 	
@@ -36,23 +54,26 @@ type Packet struct {
 	Id				uint32
 	ProtoType		byte
 	PacketType		byte
+    OtherTunnelId   uint32
 	OtherLen		int
 	Dst				string
 }
 
-func CreateNewPacket(id uint32, rawData []byte, dst string) *Packet {
-	log.Println("udppacket createNewPacket")
+func CreateNewPacket(id uint32, rawData []byte, dst string, modulesCount int, LOG *log.Logger) *Packet {
+	LOG.Println("udppacket createNewPacket")
 	p := new(Packet)
+    p.ModulesCtx = make([]interface{}, modulesCount)
 	p.RawData = rawData
 	p.SessionId = 0
 	p.TunnelId = 0
 	p.Id = id
 	p.Dst = dst
 	p.Length = len(rawData) - 96
+    p.LOG = LOG
 	return p
 }
 
-func GenPacketFromData(data []byte) *Packet {
+func GenPacketFromData(data []byte, LOG *log.Logger) *Packet {
 
 	dataLen := utils.BytesToInt16(data[Length_INDEX:Length_END])
 	tunnelId := utils.BytesToInt32(data[TunnelId_INDEX:TunnelId_END])
@@ -78,11 +99,12 @@ func GenPacketFromData(data []byte) *Packet {
 	p.Start = start
 	p.Dst = dst
 	p.RawData = data
+    p.LOG = LOG
 	return p
 }
 
 func (p *Packet)LogPacket() {
-	log.Println("Length", p.Length, "TunnelId", p.TunnelId,  "SessionId", p.SessionId, "Id", p.Id, "ProtoType", p.ProtoType, "PacketType", p.PacketType, "otherlen", p.OtherLen, "Dst", p.Dst)
+	p.LOG.Println("Length", p.Length, "TunnelId", p.TunnelId,  "SessionId", p.SessionId, "Id", p.Id, "ProtoType", p.ProtoType, "PacketType", p.PacketType, "otherlen", p.OtherLen, "Dst", p.Dst)
 }
 
 func (p *Packet)genHeader() []byte {
@@ -113,14 +135,14 @@ func (p *Packet)genHeader() []byte {
 		copy(header[OtherLen_INDEX + 1:OtherLen_INDEX + 1 + p.OtherLen], dstBytes)
 		count += len(dstBytes)
 	} else {
-		log.Println("error udppacket genHeader OtherLen not match len(Dst)")
+		p.LOG.Println("error udppacket genHeader OtherLen not match len(Dst)")
 		header[OtherLen_INDEX] = byte(0)
 	}
 	return header[:count]
 }
 
 func (p *Packet)RawDataAddHeader() {
-	log.Println("udpapcket rawDataAddHeader")
+	p.LOG.Println("udpapcket rawDataAddHeader")
 	header := p.genHeader() 
 	p.Start = 96 - len(header)
 	copy(p.RawData[p.Start:96], header)
@@ -135,6 +157,18 @@ func (p *Packet)ChangeTunnelId(tunnelId uint32) {
 	for i := TunnelId_INDEX; i < TunnelId_END; i++ {
 		p.RawData[p.Start + i] = data[i - TunnelId_INDEX]
 	}
+}
+
+func (p *Packet)ChangeOtherTunnelId(tunnelId uint32) {
+    p.OtherTunnelId = tunnelId
+    data := utils.Int32ToBytes(tunnelId)
+    for i := OtherTunnelId_INDEX; i < OtherTunnelId_END; i++ {
+        p.RawData[p.Start + i] = data[i - OtherTunnelId_INDEX]
+    }
+}
+
+func (p *Packet)SetPacket(packetFlag byte) {
+    
 }
 
 func (p *Packet)ChangeGroupId(groupId uint32) {

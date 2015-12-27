@@ -2,13 +2,14 @@ package udp2tcp
 import (
 	"log"
 	"net"
-//	"os"
+	"os"
 	"sync"
 	"udptunnel"
 	"udpsession"
 	"udppacket"
 )
 
+var LOG *log.Logger
 var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session
 var lock *sync.Mutex
@@ -20,7 +21,8 @@ func getSession(id uint32) *udpsession.Session {
 		lock.Lock()
 		s, ok = idSessionMap[id]
 		if !ok {
-			s = udpsession.CreateNewSession(id)
+			s = udpsession.CreateNewSession(id, LOG)
+            s.ModulesCount = ut.ModulesCount
 			idSessionMap[id] = s
 			ok := connectToServer(s)
 			if !ok {
@@ -66,7 +68,7 @@ func connectToServer(s *udpsession.Session) bool {
  * tunnel call
  **/
 func onData(p *udppacket.Packet) int {
-	log.Println("udp2tcp onData")
+	LOG.Println("udp2tcp onData")
 	p.LogPacket()
 	// close packet
 	if p.Length == 0 {
@@ -77,13 +79,13 @@ func onData(p *udppacket.Packet) int {
 	if s == nil {
 		return -1
 	}
-	log.Println("udp2tcp check")
+	LOG.Println("udp2tcp check")
 	s.Slock.Lock()
 	s.ProcessNewPacketFromClientProxy(p)
 	for {
 		p := s.GetNextRecvDataToSend()
 		if p == nil {
-			log.Println("send data nil")
+			LOG.Println("send data nil")
 			break
 		}
 		processWrite(s, p.GetPacket())
@@ -119,13 +121,13 @@ func processWrite(s *udpsession.Session, data []byte) {
  **/
 func processRead(s *udpsession.Session) {
 	conn := *s.C
-	log.Println("udp2tcp processRead")
+	LOG.Println("udp2tcp processRead")
 	id := s.GetId()
 	for {
 		buf := make([]byte, 4096)
 		n, err := conn.Read(buf[96:])
 		if err != nil {
-			log.Println("server read ", err)
+			LOG.Println("server read ", err)
 			releaseSession(id, true)
 			break
 		}
@@ -145,16 +147,31 @@ func processRead(s *udpsession.Session) {
 
 
 func Run() {
+    
+    fileName := "udp2tcp_debug.log"
+    logFile,err  := os.Create(fileName)
+    defer logFile.Close()
+    if err != nil {
+        LOG.Fatalln("open file error !")
+    }
+    LOG = log.New(logFile,"[Debug]",log.Llongfile)
+    
 	idSessionMap = map[uint32]*udpsession.Session{}
 	lock = new(sync.Mutex)
 	// 启动udp服务器代理，并注册响应的回调函数
-	ut = udptunnel.CreateServerTunnel(onData)
+	ut = udptunnel.CreateServerTunnel(onData, LOG)
 	ut.Handlers = make([]udptunnel.TunnelHandler, 0)
-	pacingModule := udptunnel.NewPacing()
-	ut.Handlers = append(ut.Handlers, pacingModule)
-	nackModule := udptunnel.NewNack() 
+    utAddId := udptunnel.NewUtAddId(LOG)
+    utAddId.LOG = LOG
+    ut.Handlers = append(ut.Handlers, utAddId)
+	nackModule := udptunnel.NewNack(LOG) 
 	ut.Handlers = append(ut.Handlers, nackModule)
-	
+    pacingModule := udptunnel.NewPacing(LOG)
+	ut.Handlers = append(ut.Handlers, pacingModule)
+    utWriter := udptunnel.NewUtWriter(LOG)
+    ut.Handlers = append(ut.Handlers, utWriter)
+	ut.InitHandlers()
+    
 	ut.StartServer()
 }
 

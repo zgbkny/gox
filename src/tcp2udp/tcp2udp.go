@@ -1,5 +1,6 @@
 package tcp2udp
 import (
+    "os"
 	"net"
 	"log"
 	"sync"
@@ -16,6 +17,8 @@ var lock *sync.Mutex
 var sessionCount uint32				// 产生sessionId
 var ut *udptunnel.UDPTunnel
 var idSessionMap map[uint32]*udpsession.Session
+var LOG *log.Logger
+
 func releaseSession(id uint32, flag bool) {
 	s, ok := idSessionMap[id]
 	if ok {
@@ -37,7 +40,7 @@ func releaseSession(id uint32, flag bool) {
  *
  **/
 func onData (p *udppacket.Packet) int {
-	log.Println("tcp2udp onData")
+	LOG.Println("tcp2udp onData")
 	p.LogPacket()
 	// getsession
 	s, ok := idSessionMap[p.SessionId]
@@ -92,7 +95,7 @@ func processWrite (s *udpsession.Session,data []byte) int {
  * client tcp read
  **/
 func processRead (s *udpsession.Session) {
-	log.Println("tcp2udp processRead")
+    LOG.Println("tcp2udp processRead")
 	conn := *s.C
 	id := s.GetId()
 	for {
@@ -100,7 +103,7 @@ func processRead (s *udpsession.Session) {
 		buf := make([]byte, 4096)
 		length, err := conn.Read(buf[96:])
 		if err != nil {
-			log.Println("client read error", err)
+			LOG.Println("client read error", err)
 			releaseSession(id, true)
 			break
 		}
@@ -116,7 +119,7 @@ func processRead (s *udpsession.Session) {
 			rc := ut.WritePacketToServerProxy(p)
 			// 检查数据处理结果
 			if rc == -1 {
-				log.Println("client send err")
+				LOG.Println("client send err")
 				break
 			}
 		}
@@ -130,11 +133,12 @@ func processRead (s *udpsession.Session) {
  * one thread call
  **/
 func processNewAcceptedConn(conn net.Conn) *udpsession.Session {
-	s := udpsession.CreateNewSession(sessionCount)
+	s := udpsession.CreateNewSession(sessionCount, LOG)
 	s.C = &conn
+    s.ModulesCount = ut.ModulesCount
 	idSessionMap[sessionCount] = s
 	sessionCount++
-	log.Println("sessionCount", sessionCount)
+	LOG.Println("sessionCount", sessionCount)
 	return s
 }
 
@@ -159,17 +163,33 @@ func initListen() {
 
 
 func Run() {
+    
+    fileName := "tcp2udp_debug.log"
+    logFile,err  := os.Create(fileName)
+    defer logFile.Close()
+    if err != nil {
+        LOG.Fatalln("open file error !")
+    }
+    LOG = log.New(logFile,"[Debug]",log.Llongfile)
+   /*LOG.Println("A debug message here")
+    LOG.SetPrefix("[Info]")
+    LOG.Println("A Info Message here ")
+    LOG.SetFlags(LOG.Flags() | log.LstdFlags)
+    LOG.Println("A different prefix")*/
+    
 	sessionCount = 0
 	lock = new(sync.Mutex)
 	idSessionMap = map[uint32]*udpsession.Session{}
-	ut = udptunnel.CreateClientTunnel(onData)
+	ut = udptunnel.CreateClientTunnel(onData, LOG)
 	ut.Handlers = make([]udptunnel.TunnelHandler, 0)
-	pacingModule := udptunnel.NewPacing()
+    utAddId := udptunnel.NewUtAddId(LOG)
+    ut.Handlers = append(ut.Handlers, utAddId)
+	pacingModule := udptunnel.NewPacing(LOG)
 	ut.Handlers = append(ut.Handlers, pacingModule)
-	nackModule := udptunnel.NewNack() 
+	nackModule := udptunnel.NewNack(LOG) 
 	ut.Handlers = append(ut.Handlers, nackModule)
-
-	//log.Println("test", len(ut.Handlers), " ", ut.Handlers[0].Debug())
+    utWriter := udptunnel.NewUtWriter(LOG)
+    ut.Handlers = append(ut.Handlers, utWriter)
 
 	ut.InitHandlers()
 	initListen()
