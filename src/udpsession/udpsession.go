@@ -71,6 +71,7 @@ func (s *Session) Destroy(flag bool) *udppacket.Packet {
 	} else {
 		return nil
 	}
+	return nil
 }
 
 func (s *Session) ProcessNewDataToServerProxy(rawData []byte) {
