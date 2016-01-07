@@ -51,7 +51,7 @@ type UDPTunnel struct {
 
 	lock				*sync.Mutex
 	// 统计
-	tunnelCount			uint32				// 当运行于客户端时用于产生session id，服务端只是用于统计
+	tunnelCount			uint64				// 当运行于客户端时用于产生session id，服务端只是用于统计
     ModulesCount        int                 // 
 }
 
@@ -147,12 +147,13 @@ func (ut *UDPTunnel)initServerTunnel() {
 }
 
 
-func (ut *UDPTunnel)GetNewTunnelId() uint32 {
+func (ut *UDPTunnel)GetNewTunnelId() uint64 {
     //ut.LOG.Println("GetNewTunnelId ut.lock")
+    retId := ut.tunnelCount
 	ut.lock.Lock()
 	ut.tunnelCount++
 	ut.lock.Unlock()
-    return ut.tunnelCount
+    return retId
 }
 /**
  * 处理客户端网关写原始数据	

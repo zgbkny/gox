@@ -35,7 +35,7 @@ func (utAddId *UT_ADD_ID) InitHandler(ut *UDPTunnel, index int) {
 }
 
 func (utAddId *UT_ADD_ID) WriteToServerProxy(p *udppacket.Packet) *udppacket.Packet {
-    utAddId.LOG.Print("WriteToServerProxy", utAddId.Ut)
+    utAddId.LOG.Print("ut_add_id_module WriteToServerProxy")
     utAddId.lock.Lock()
     defer utAddId.lock.Unlock()
     if p.ModulesCtx[utAddId.Index] == nil {
@@ -47,7 +47,7 @@ func (utAddId *UT_ADD_ID) WriteToServerProxy(p *udppacket.Packet) *udppacket.Pac
 }
 
 func (utAddId *UT_ADD_ID) WriteToClientProxy(p *udppacket.Packet) *udppacket.Packet {
-    utAddId.LOG.Print("WriteToClientProxy")
+    utAddId.LOG.Print("ut_add_id_module WriteToClientProxy")
     utAddId.lock.Lock()
     defer utAddId.lock.Unlock()
     if p.ModulesCtx[utAddId.Index] == nil {
@@ -59,12 +59,12 @@ func (utAddId *UT_ADD_ID) WriteToClientProxy(p *udppacket.Packet) *udppacket.Pac
 }
 
 func (utAddId *UT_ADD_ID) ReadFromServerProxy(p *udppacket.Packet) *udppacket.Packet {
-    utAddId.LOG.Print("ReadFromServerProxy")
+    utAddId.LOG.Print("ut_add_id_module ReadFromServerProxy")
     return p
 }
 
 func (utAddId *UT_ADD_ID) ReadFromClientProxy(p *udppacket.Packet) *udppacket.Packet {
-    utAddId.LOG.Print("ReadFromClientProxy")
+    utAddId.LOG.Print("ut_add_id_module ReadFromClientProxy")
     return p
 }
  

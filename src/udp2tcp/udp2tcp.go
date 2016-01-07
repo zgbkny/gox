@@ -79,7 +79,7 @@ func onData(p *udppacket.Packet) int {
 	if s == nil {
 		return -1
 	}
-	LOG.Println("udp2tcp check")
+	//LOG.Println("udp2tcp check")
 	s.Slock.Lock()
 	s.ProcessNewPacketFromClientProxy(p)
 	for {

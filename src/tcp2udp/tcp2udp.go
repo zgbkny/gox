@@ -4,6 +4,7 @@ import (
 	"net"
 	"log"
 	"sync"
+    "utils"
 	"udptunnel"
 	"udpsession"
 	"udppacket"
@@ -95,7 +96,7 @@ func processWrite (s *udpsession.Session,data []byte) int {
  * client tcp read
  **/
 func processRead (s *udpsession.Session) {
-    LOG.Println("tcp2udp processRead")
+    //LOG.Println("tcp2udp processRead")
 	conn := *s.C
 	id := s.GetId()
 	for {
@@ -138,7 +139,7 @@ func processNewAcceptedConn(conn net.Conn) *udpsession.Session {
     s.ModulesCount = ut.ModulesCount
 	idSessionMap[sessionCount] = s
 	sessionCount++
-	LOG.Println("sessionCount", sessionCount)
+	//LOG.Println("sessionCount", sessionCount)
 	return s
 }
 
@@ -163,6 +164,9 @@ func initListen() {
 
 
 func Run() {
+    s := utils.MAX_ID
+    s++
+    log.Println(s)
     
     fileName := "tcp2udp_debug.log"
     logFile,err  := os.Create(fileName)
@@ -184,10 +188,10 @@ func Run() {
 	ut.Handlers = make([]udptunnel.TunnelHandler, 0)
     utAddId := udptunnel.NewUtAddId(LOG)
     ut.Handlers = append(ut.Handlers, utAddId)
+    nackModule := udptunnel.NewNack(LOG) 
+	ut.Handlers = append(ut.Handlers, nackModule)
 	pacingModule := udptunnel.NewPacing(LOG)
 	ut.Handlers = append(ut.Handlers, pacingModule)
-	nackModule := udptunnel.NewNack(LOG) 
-	ut.Handlers = append(ut.Handlers, nackModule)
     utWriter := udptunnel.NewUtWriter(LOG)
     ut.Handlers = append(ut.Handlers, utWriter)
 

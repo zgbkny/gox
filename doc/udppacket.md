@@ -1,0 +1,27 @@
+#UDPPacket
+处理流程：
+- 小站网关
+    - tcp2udp中读取数据
+        - session的ProcessNewDataToServerProxy
+            - udppacket的CreateNewPacket，(Start : 0)
+            - 设置
+            - udppacket的RawDataAddHeader, (Start : 96 - len(header))
+        - session的GetNextSendDataToSend， (Start : 96 - len(header))
+        - udptunnel的WritePacketToServerProxy， (Start : 96 - len(header))
+            - ut_add_id_module的WriteToServerProxy
+            - ut_nack_module的WriteToServerProxy
+            - ut_pacing_module的WriteToServerProxy
+            - ut_writer_module的WriteToServerProxy
+                - p.GetPacket()获取数据包(获取从Start开始的数据)
+    - udptunnel的readPacketFromServerProxy,()
+        - udppacket的GenPacketFromData，解析数据包
+- 中心站网关
+    - udp2tcp中读取数据
+        - session的ProcessNewDataToClientProxy
+    - udptunnel的readPacketFromClientProxy
+        - udppacket的GenPacketFromData,(Start : 包体开始位置)
+        - modules
+            - ut_writer_module的ReadFromClientProxy
+            - ut_pacing_module的ReadFromClientProxy
+            - ut_nack_module的ReadFromClientProxy
+            - ut_add_id_module的ReadFromClientProxy 

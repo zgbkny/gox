@@ -3,18 +3,36 @@ import (
 	"bytes"
 	"encoding/binary"
 )
-func Int32ToBytes(ui uint32) []byte {
+
+const MAX_ID uint64 = 4294967295
+const MIN_ID uint64 = 0
+
+func Uint32ToBytes(ui32 uint32) []byte {
 	buf := bytes.NewBuffer([]byte{})
-	binary.Write(buf, binary.BigEndian, ui)
+	binary.Write(buf, binary.BigEndian, ui32)
 	return buf.Bytes()
 }
 
-func BytesToInt32(data []byte) uint32 {
+func BytesToUint32(data []byte) uint32 {
 	buf := bytes.NewBuffer(data)
-	var ui uint32
-	binary.Read(buf, binary.BigEndian, &ui)
-	return ui
+	var ui32 uint32
+	binary.Read(buf, binary.BigEndian, &ui32)
+	return ui32
 }
+
+func Uint64ToBytes(ui64 uint64) []byte {
+    buf := bytes.NewBuffer([]byte{})
+    binary.Write(buf, binary.BigEndian, ui64)
+    return buf.Bytes()
+}
+
+func BytesToUint64(data []byte) uint64 {
+    buf := bytes.NewBuffer(data)
+    var ui64 uint64
+    binary.Read(buf, binary.BigEndian, &ui64)
+    return ui64
+}
+
 func Int16ToBytes(i int) []byte {
 	buf := make([]byte, 2)
 	buf[1] = byte(i & 0xff)
